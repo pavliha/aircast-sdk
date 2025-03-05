@@ -45,9 +45,6 @@ This repository contains the Protocol Buffer definitions that serve as the singl
    
    # For TypeScript only
    npm run generate:ts
-   
-   # For Python only
-   npm run generate:python
    ```
 
 ## Protocol Structure

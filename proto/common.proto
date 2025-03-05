@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package aircast.protocol.common;
+
+option go_package = "github.com/pavliha/aircast-protocol/gen/go/common";
+
+// Common reusable structures for the Aircast protocol
+
+// Event represents a generic event with a name, type, and arbitrary payload
+message Event {
+  string name = 1;
+  string type = 2;
+  bytes payload = 3;  // Can be any serialized data
+}
+
+// SignalQuality represents cellular signal quality
+message SignalQuality {
+  int32 value = 1;    // Signal quality as a percentage or dBm value
+}
+
+// Camera represents a camera configuration
+message Camera {
+  string id = 1;
+  string name = 2;
+  string rtsp_url = 3;
+  string network_interface = 4;
+}
+
+// InterfaceInfo represents network interface information
+message InterfaceInfo {
+  string name = 1;
+  int32 mtu = 2;
+  string hardware_addr = 3;
+  string flags = 4;
+  repeated string addresses = 5;
+}
+
+// ServiceStatus represents the status of various services
+message ServiceStatus {
+  Event mavlink = 1;
+  Event rtsp = 2;
+  Event modem = 3;
+  Event webrtc = 4;
+}

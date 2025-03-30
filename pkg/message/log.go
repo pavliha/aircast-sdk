@@ -2,6 +2,7 @@ package message
 
 import (
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"strings"
 )
 
@@ -20,9 +21,10 @@ const (
 )
 
 // Print prints a formatted colored message to stdout
-func Print(label string, msg GenericMessage) {
+func Print(msg GenericMessage) {
 	// Get message info
 	var msgType, action, source, sessionID string
+	var payload interface{}
 
 	switch m := msg.(type) {
 	case EventMessage:
@@ -30,28 +32,34 @@ func Print(label string, msg GenericMessage) {
 		action = string(m.Action)
 		source = string(m.Source)
 		sessionID = string(m.SessionID)
+		payload = m.Payload
 	case RequestMessage:
 		msgType = "REQUEST"
 		action = string(m.Action)
 		source = string(m.Source)
 		sessionID = string(m.SessionID)
+		payload = m.Payload
 	case ResponseMessage:
 		msgType = "RESPONSE"
 		action = string(m.Action)
 		source = string(m.Source)
 		sessionID = string(m.SessionID)
+		payload = m.Payload
 	case ErrorMessage:
 		msgType = "ERROR"
 		action = string(m.Action)
 		source = string(m.Source)
 		sessionID = string(m.SessionID)
+		payload = m.Error
 	default:
 		msgType = "UNKNOWN"
+		fmt.Printf("%s%sUNKNOWN MESSAGE TYPE - DUMPING FULL CONTENT:%s\n", Bold, Red, Reset)
+		spew.Dump(msg)
 	}
 
 	// Print header line
-	fmt.Printf("%s[%s]%s %s%s %s %s%s\n",
-		White, label, Reset,
+	fmt.Printf("%s%s %s%s %s %s%s\n",
+		White, Reset,
 		BgMagenta+White, msgType, Reset,
 		Bold, action)
 
@@ -68,21 +76,33 @@ func Print(label string, msg GenericMessage) {
 			Cyan, sessionID, Reset)
 	}
 
-	// Print payload if it exists
-	switch m := msg.(type) {
-	case EventMessage:
+	// Print payload only if it exists and is not empty
+	if hasContent(payload) {
 		fmt.Printf("  %sPayload:%s\n", Yellow, Reset)
-		printPayload(m.Payload)
-	case RequestMessage:
-		fmt.Printf("  %sPayload:%s\n", Yellow, Reset)
-		printPayload(m.Payload)
-	case ResponseMessage:
-		fmt.Printf("  %sPayload:%s\n", Yellow, Reset)
-		printPayload(m.Payload)
+		printPayload(payload)
 	}
 
 	// Add a separator
 	fmt.Println(strings.Repeat("-", 50))
+}
+
+// hasContent checks if the payload has any content worth displaying
+func hasContent(payload interface{}) bool {
+	if payload == nil {
+		return false
+	}
+
+	switch p := payload.(type) {
+	case map[string]interface{}:
+		return len(p) > 0
+	case string:
+		return p != ""
+	case []interface{}:
+		return len(p) > 0
+	default:
+		// For other types, assume they have content
+		return true
+	}
 }
 
 // printPayload pretty prints a payload

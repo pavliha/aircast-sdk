@@ -129,7 +129,7 @@ func (r *Router) adaptHandler(handler interface{}) ActionHandler {
 	// Handle function that takes a payload and returns an interface{}
 	if fn, ok := handler.(func(any) interface{}); ok {
 		return func(ctx context.Context, req *Request, res *Response) {
-			// Get payload from context
+			// Get payload from context, might be nil
 			payload := req.Payload
 			result := fn(payload)
 			res.SendSuccess(result)
@@ -139,7 +139,7 @@ func (r *Router) adaptHandler(handler interface{}) ActionHandler {
 	// Handle function that takes a payload and returns (interface{}, error)
 	if fn, ok := handler.(func(any) (interface{}, error)); ok {
 		return func(ctx context.Context, req *Request, res *Response) {
-			// Get payload from context
+			// Get payload from context, might be nil
 			payload := req.Payload
 			result, err := fn(payload)
 			if err != nil {

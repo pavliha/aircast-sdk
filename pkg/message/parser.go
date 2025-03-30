@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 func UnmarshalMessage(data []byte) (any, error) {
@@ -79,26 +78,6 @@ func validateMessage(msg map[string]any) error {
 	// Action is required for all message types
 	if msg["action"] == nil {
 		return ErrMissingAction
-	}
-
-	// Validate action format
-	action, ok := msg["action"].(string)
-	if !ok {
-		return fmt.Errorf("action must be a string")
-	}
-
-	// Validate action has at least system identifier
-	parts := strings.Split(action, ".")
-	if len(parts) < 2 {
-		return fmt.Errorf("action format invalid: must have at least system.domain format")
-	}
-
-	// Validate system identifier
-	switch parts[0] {
-	case SystemAPI, SystemDevice, SystemClient:
-		// Valid system identifier
-	default:
-		return fmt.Errorf("action must start with a valid system identifier (api, device, client)")
 	}
 
 	// Additional validations for specific message types

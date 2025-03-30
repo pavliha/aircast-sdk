@@ -78,7 +78,7 @@ func (c *client) Listen(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			c.logger.Debug("Context canceled, stopping client")
+			c.logger.Trace("Context canceled, stopping client")
 			_ = c.Close()
 		case <-done:
 			// Listen function is done.
@@ -94,7 +94,7 @@ func (c *client) Listen(ctx context.Context) error {
 
 		case msgBytes, ok := <-msgChan:
 			if !ok {
-				c.logger.Debug("WebSocket message channel closed")
+				c.logger.Trace("WebSocket message channel closed")
 				_ = c.Close()
 				return nil
 			}
@@ -107,20 +107,19 @@ func (c *client) Listen(ctx context.Context) error {
 				continue
 			}
 
-			Print("Read Message", msg)
-
 			// Forward the message if not closed.
 			if !c.IsClosed() {
 				select {
 				case c.msgCh <- msg:
-					c.logger.Debug("Generic message received and forwarded")
+					c.logger.Debug("Message received and forwarded")
+					Print(msg)
 				default:
 					c.logger.Warn("GenericMessage channel full, dropping message")
 				}
 			}
 
 		case <-ctx.Done():
-			c.logger.Debug("Context canceled in message loop")
+			c.logger.Trace("Context canceled in message loop")
 			_ = c.Close()
 			return nil
 		}

@@ -13,8 +13,14 @@ type Client interface {
 	// Listen starts listening for incoming messages
 	Listen(ctx context.Context) error
 
+	// SendSessionMessage sends direct message
+	SendSessionMessage(sessionId SessionID, msg any) error
+
+	// SendBroadcastMessage sends a broadcast message
+	SendBroadcastMessage(msg any) error
+
 	// Send sends a message
-	Send(msg any) error
+	Send(msg any, sessionId *SessionID) error
 
 	// Close closes the client connection
 	Close() error
@@ -50,12 +56,6 @@ type client struct {
 	closeOnce  sync.Once
 	source     MessageSource
 }
-
-// Error constants
-var (
-	ErrCloseMessage = fmt.Errorf("close message received")
-	ErrClosed       = fmt.Errorf("connection closed")
-)
 
 // NewClient creates a new message client
 func NewClient(logger *log.Entry, conn Connection, source MessageSource) Client {
@@ -126,67 +126,124 @@ func (c *client) Listen(ctx context.Context) error {
 	}
 }
 
-// Send sends a message through the websocket connection.
-func (c *client) Send(msg any) error {
+// ReadMessage returns a channel of incoming messages.
+func (c *client) ReadMessage() <-chan GenericMessage {
+	return c.msgCh
+}
+
+// Send is a helper function that handles the common logic for sending messages
+func (c *client) Send(msg any, sessionId *SessionID) error {
 	if c.IsClosed() {
 		return fmt.Errorf("client connection is closed")
 	}
 
-	var data []byte
-	var err error
+	// First add sessionId to the message if provided
+	if sessionId != nil {
+		switch m := msg.(type) {
+		case RequestMessage:
+			m.SessionID = string(*sessionId)
+			msg = m
+		case ResponseMessage:
+			m.SessionID = *sessionId
+			msg = m
+		case ErrorMessage:
+			m.SessionID = *sessionId
+			msg = m
+		case EventMessage:
+			m.SessionID = *sessionId
+			msg = m
+		}
+	}
 
+	// Log the message we're about to send
+	c.logger.Debug("Sending message")
+	Print(msg)
+
+	// Prepare envelope based on the message type
+	var envelope any
 	switch m := msg.(type) {
 	case RequestMessage:
-		// Wrap RequestMessage in an anonymous struct that includes the "type" field
-		envelope := struct {
+		envelope = struct {
 			Type string `json:"type"`
 			RequestMessage
 		}{
 			Type:           TypeRequest,
 			RequestMessage: m,
 		}
-		data, err = json.Marshal(envelope)
-
 	case ResponseMessage:
-		envelope := struct {
+		envelope = struct {
 			Type string `json:"type"`
 			ResponseMessage
 		}{
 			Type:            TypeResponse,
 			ResponseMessage: m,
 		}
-		data, err = json.Marshal(envelope)
-
 	case ErrorMessage:
-		envelope := struct {
+		envelope = struct {
 			Type string `json:"type"`
 			ErrorMessage
 		}{
 			Type:         TypeError,
 			ErrorMessage: m,
 		}
-		data, err = json.Marshal(envelope)
-
 	case EventMessage:
-		envelope := struct {
+		envelope = struct {
 			Type string `json:"type"`
 			EventMessage
 		}{
 			Type:         TypeEvent,
 			EventMessage: m,
 		}
-		data, err = json.Marshal(envelope)
-
 	default:
 		return fmt.Errorf("message type not supported: %T", msg)
 	}
 
+	// Marshal envelope to JSON
+	data, err := json.Marshal(envelope)
 	if err != nil {
 		c.logger.WithError(err).Error("Failed to marshal message")
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
 	return c.conn.SendTextMessage(data)
+}
+
+// SendSessionMessage sends a message to a specific session
+func (c *client) SendSessionMessage(sessionId SessionID, msg any) error {
+	return c.Send(msg, &sessionId)
+}
+
+func (c *client) SendBroadcastMessage(msg any) error {
+	return c.Send(msg, nil)
+}
+
+func (c *client) SendResponse(req *Request, payload any) error {
+	return c.Send(ResponseMessage{
+		Action:    req.Action,
+		Payload:   payload,
+		Source:    c.source,
+		SessionID: req.SessionID,
+		ReplyTo:   req.RequestID,
+	}, &req.SessionID)
+}
+
+func (c *client) SendEvent(action MessageAction, payload any, sessionID SessionID) error {
+	return c.Send(EventMessage{
+		Action:    action,
+		Payload:   payload,
+		Source:    c.source,
+		SessionID: sessionID,
+	}, &sessionID)
+}
+
+func (c *client) SendError(req *Request, errResponse ErrorResponse) error {
+	return c.Send(ErrorMessage{
+		Action:    req.Action,
+		Source:    c.source,
+		SessionID: req.SessionID,
+		Error:     errResponse,
+		ReplyTo:   req.RequestID,
+	}, &req.SessionID)
 }
 
 // Close safely closes the client connection.
@@ -209,38 +266,4 @@ func (c *client) IsClosed() bool {
 	c.closeMutex.Lock()
 	defer c.closeMutex.Unlock()
 	return c.closed
-}
-
-// ReadMessage returns a channel of incoming messages.
-func (c *client) ReadMessage() <-chan GenericMessage {
-	return c.msgCh
-}
-
-func (c *client) SendResponse(req *Request, payload any) error {
-	return c.Send(ResponseMessage{
-		Action:    req.Action,
-		Payload:   payload,
-		Source:    c.source,
-		SessionID: req.SessionID,
-		ReplyTo:   req.RequestID,
-	})
-}
-
-func (c *client) SendEvent(action MessageAction, payload any, sessionID SessionID) error {
-	return c.Send(EventMessage{
-		Action:    action,
-		Payload:   payload,
-		Source:    c.source,
-		SessionID: sessionID,
-	})
-}
-
-func (c *client) SendError(req *Request, errResponse ErrorResponse) error {
-	return c.Send(ErrorMessage{
-		Action:    req.Action,
-		Source:    c.source,
-		SessionID: req.SessionID,
-		Error:     errResponse,
-		ReplyTo:   req.RequestID,
-	})
 }

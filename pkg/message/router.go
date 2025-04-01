@@ -13,28 +13,28 @@ type ActionHandler func(ctx context.Context, req *Request, res *Response)
 // Middleware is a function that wraps an ActionHandler and can perform pre- / post-processing
 type Middleware func(ActionHandler) ActionHandler
 
-// Router stores registered action handlers
-type Router struct {
+// Handler stores registered action handlers
+type Handler struct {
 	handlers map[string]ActionHandler
 	logger   *logrus.Entry
 }
 
-// NewRouter creates a new action registry
-func NewRouter(logger *logrus.Entry) *Router {
-	return &Router{
+// NewHandler creates a new action registry
+func NewHandler(logger *logrus.Entry) *Handler {
+	return &Handler{
 		handlers: make(map[string]ActionHandler),
 		logger:   logger,
 	}
 }
 
-// Route registers an action with handlers and optional middleware
-func (r *Router) Route(action string, handlers ...interface{}) {
+// Handle registers an action with handlers and optional middleware
+func (r *Handler) Handle(action string, handlers ...interface{}) {
 	// The last handler must be the actual ActionHandler
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("No handlers provided for action %s", action))
 	}
 
-	// Handle the simple case: Route(ActionNetworkStatusGet, handler)
+	// Handle the simple case: Handle(ActionNetworkStatusGet, handler)
 	if len(handlers) == 1 {
 		handler, ok := handlers[0].(ActionHandler)
 		if !ok {
@@ -70,18 +70,18 @@ func (r *Router) Route(action string, handlers ...interface{}) {
 		finalHandler = middleware(finalHandler)
 	}
 
-	// Route the handler with the action
+	// Handle the handler with the action
 	r.handlers[action] = finalHandler
 }
 
 // GetHandler returns the handler for the given action
-func (r *Router) GetHandler(action string) (ActionHandler, bool) {
+func (r *Handler) GetHandler(action string) (ActionHandler, bool) {
 	handler, exists := r.handlers[action]
 	return handler, exists
 }
 
 // adaptHandler tries to convert different handler types to ActionHandler
-func (r *Router) adaptHandler(handler interface{}) ActionHandler {
+func (r *Handler) adaptHandler(handler interface{}) ActionHandler {
 	// If it's already an ActionHandler, return it
 	if ah, ok := handler.(ActionHandler); ok {
 		return ah

@@ -91,9 +91,6 @@ func validateMessage(msg map[string]any) error {
 		if msg["reply_to"] == nil {
 			return errors.New("response must include 'reply_to' field")
 		}
-		if msg["status"] == nil {
-			return errors.New("response must include 'status' field")
-		}
 	case TypeError:
 		if msg["reply_to"] == nil {
 			return errors.New("error must include 'reply_to' field")

@@ -27,7 +27,7 @@ func NewRequest(
 	}
 }
 
-func CreateFromRequestMessage(reqMsg *RequestMessage) (*Request, error) {
+func CreateFromRequestMessage(reqMsg RequestMessage) (*Request, error) {
 	var payload RequestPayload
 
 	if reqMsg.Payload != nil {

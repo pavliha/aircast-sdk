@@ -30,7 +30,7 @@ const (
 )
 
 // ErrorCode Standard error codes
-type ErrorCode string
+type ErrorCode = string
 
 const (
 	// General errors
@@ -41,22 +41,6 @@ const (
 	ErrUnauthorized       ErrorCode = "UNAUTHORIZED"
 	ErrInvalidParameters  ErrorCode = "INVALID_PARAMETERS"
 	ErrNotFound           ErrorCode = "NOT_FOUND"
-
-	// Camera-related errors
-	ErrCameraNotFound     ErrorCode = "CAMERA_NOT_FOUND"
-	ErrCameraInUse        ErrorCode = "CAMERA_IN_USE"
-	ErrCameraNotConnected ErrorCode = "CAMERA_NOT_CONNECTED"
-	ErrStreamFailed       ErrorCode = "STREAM_FAILED"
-
-	// WebRTC-related errors
-	ErrSessionNotFound ErrorCode = "SESSION_NOT_FOUND"
-	ErrSessionExists   ErrorCode = "SESSION_EXISTS"
-	ErrSignalingFailed ErrorCode = "SIGNALING_FAILED"
-	ErrICEFailed       ErrorCode = "ICE_FAILED"
-
-	// Network-related errors
-	ErrNetworkUnavailable ErrorCode = "NETWORK_UNAVAILABLE"
-	ErrConnectionFailed   ErrorCode = "CONNECTION_FAILED"
 )
 
 // Error level indicators

@@ -27,6 +27,12 @@ func NewRequest(
 	}
 }
 
+// ProcessPayload unmarshals and validates the request payload into the provided struct
+func (r *Request) ProcessPayload(target interface{}) error {
+	processor := NewProcessor()
+	return processor.Process(r.Payload, target)
+}
+
 func CreateFromRequestMessage(reqMsg RequestMessage) (*Request, error) {
 	var payload RequestPayload
 

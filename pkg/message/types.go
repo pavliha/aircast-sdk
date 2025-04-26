@@ -33,7 +33,6 @@ const (
 type ErrorCode = string
 
 const (
-	// General errors
 	ErrInvalidRequest     ErrorCode = "INVALID_REQUEST"
 	ErrInternalError      ErrorCode = "INTERNAL_ERROR"
 	ErrServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
@@ -43,7 +42,7 @@ const (
 	ErrNotFound           ErrorCode = "NOT_FOUND"
 )
 
-// Error level indicators
+// ErrorLevel Error level indicators
 type ErrorLevel string
 
 const (
@@ -92,7 +91,6 @@ type ErrorResponse struct {
 	Message string        `json:"message"`
 	Source  MessageSource `json:"source"`
 	Details interface{}   `json:"details,omitempty"`
-	Level   ErrorLevel    `json:"level"`
 }
 
 // ErrorMessage represents a server error response

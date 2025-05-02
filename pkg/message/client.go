@@ -46,25 +46,34 @@ type Connection interface {
 	IsClosed() bool
 }
 
+type ClientConfig struct {
+	Source      MessageSource
+	PrintConfig PrintConfig
+}
+
 // client implements the Client interface
 type client struct {
-	conn       Connection
-	msgCh      chan GenericMessage
-	logger     *log.Entry
-	closed     bool
-	closeMutex sync.Mutex
-	closeOnce  sync.Once
-	source     MessageSource
+	conn        Connection
+	msgCh       chan GenericMessage
+	logger      *log.Entry
+	closed      bool
+	closeMutex  sync.Mutex
+	closeOnce   sync.Once
+	source      MessageSource
+	printConfig PrintConfig
 }
 
 // NewClient creates a new message client
-func NewClient(logger *log.Entry, conn Connection, source MessageSource) Client {
+func NewClient(logger *log.Entry, conn Connection, config ClientConfig) Client {
 	return &client{
-		conn:   conn,
-		msgCh:  make(chan GenericMessage, 100),
-		logger: logger.WithField("component", "MessageClient"),
-		closed: false,
-		source: source,
+		conn:        conn,
+		msgCh:       make(chan GenericMessage, 100),
+		logger:      logger.WithField("component", "message_client"),
+		closed:      false,
+		closeMutex:  sync.Mutex{},
+		closeOnce:   sync.Once{},
+		source:      config.Source,
+		printConfig: config.PrintConfig,
 	}
 }
 
@@ -111,8 +120,8 @@ func (c *client) Listen(ctx context.Context) error {
 			if !c.IsClosed() {
 				select {
 				case c.msgCh <- msg:
-					c.logger.Debug("Message received and forwarded")
-					Print(msg)
+					c.logger.Trace("Message received and forwarded")
+					Print(msg, c.printConfig)
 				default:
 					c.logger.Warn("GenericMessage channel full, dropping message")
 				}
@@ -156,8 +165,7 @@ func (c *client) Send(msg any, sessionId *SessionID) error {
 	}
 
 	// Log the message we're about to send
-	c.logger.Debug("Sending message")
-	Print(msg)
+	Print(msg, c.printConfig)
 
 	// Prepare envelope based on the message type
 	var envelope any

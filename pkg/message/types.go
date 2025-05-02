@@ -33,13 +33,13 @@ const (
 type ErrorCode = string
 
 const (
-	ErrInvalidRequest     ErrorCode = "INVALID_REQUEST"
-	ErrInternalError      ErrorCode = "INTERNAL_ERROR"
-	ErrServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
-	ErrTimeout            ErrorCode = "TIMEOUT"
-	ErrUnauthorized       ErrorCode = "UNAUTHORIZED"
-	ErrInvalidParameters  ErrorCode = "INVALID_PARAMETERS"
-	ErrNotFound           ErrorCode = "NOT_FOUND"
+	ErrCodeInvalidRequest     ErrorCode = "INVALID_REQUEST"
+	ErrCodeInternalError      ErrorCode = "INTERNAL_ERROR"
+	ErrCodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
+	ErrCodeTimeout            ErrorCode = "TIMEOUT"
+	ErrCodeUnauthorized       ErrorCode = "UNAUTHORIZED"
+	ErrCodeInvalidParameters  ErrorCode = "INVALID_PARAMETERS"
+	ErrCodeNotFound           ErrorCode = "NOT_FOUND"
 )
 
 // ErrorLevel Error level indicators
@@ -62,7 +62,7 @@ var (
 	ErrInvalidSystem      = errors.New("invalid system identifier")
 )
 
-// Custom errors for domain operations
+// ErrDeviceNotFound Custom errors for domain operations
 var (
 	ErrDeviceNotFound = errors.New("device not found")
 )
@@ -87,10 +87,9 @@ type ResponseMessage struct {
 
 // ErrorResponse represents the error details
 type ErrorResponse struct {
-	Code    ErrorCode     `json:"code"`
-	Message string        `json:"message"`
-	Source  MessageSource `json:"source"`
-	Details interface{}   `json:"details,omitempty"`
+	Code    ErrorCode   `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
 }
 
 // ErrorMessage represents a server error response

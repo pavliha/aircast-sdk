@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+type PrintConfig struct {
+	ShowPayload bool
+}
+
 // ANSI color codes
 const (
 	Reset     = "\033[0m"
@@ -21,7 +25,7 @@ const (
 )
 
 // Print prints a formatted colored message to stdout
-func Print(msg GenericMessage) {
+func Print(msg GenericMessage, config PrintConfig) {
 	// Get message info
 	var msgType, action, source, sessionID string
 	var payload interface{}
@@ -29,27 +33,27 @@ func Print(msg GenericMessage) {
 	switch m := msg.(type) {
 	case EventMessage:
 		msgType = "EVENT"
-		action = string(m.Action)
-		source = string(m.Source)
-		sessionID = string(m.SessionID)
+		action = m.Action
+		source = m.Source
+		sessionID = m.SessionID
 		payload = m.Payload
 	case RequestMessage:
 		msgType = "REQUEST"
-		action = string(m.Action)
-		source = string(m.Source)
-		sessionID = string(m.SessionID)
+		action = m.Action
+		source = m.Source
+		sessionID = m.SessionID
 		payload = m.Payload
 	case ResponseMessage:
 		msgType = "RESPONSE"
-		action = string(m.Action)
-		source = string(m.Source)
-		sessionID = string(m.SessionID)
+		action = m.Action
+		source = m.Source
+		sessionID = m.SessionID
 		payload = m.Payload
 	case ErrorMessage:
 		msgType = "ERROR"
-		action = string(m.Action)
-		source = string(m.Source)
-		sessionID = string(m.SessionID)
+		action = m.Action
+		source = m.Source
+		sessionID = m.SessionID
 		payload = m.Error
 	default:
 		msgType = "UNKNOWN"
@@ -77,7 +81,7 @@ func Print(msg GenericMessage) {
 	}
 
 	// Print payload only if it exists and is not empty
-	if hasContent(payload) {
+	if config.ShowPayload && hasContent(payload) {
 		fmt.Printf("  %sPayload:%s\n", Yellow, Reset)
 		printPayload(payload)
 	}

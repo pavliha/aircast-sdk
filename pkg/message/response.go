@@ -2,8 +2,8 @@ package message
 
 // ResponseSender interface for sending responses
 type ResponseSender interface {
-	SendResponse(req *Request, payload interface{})
-	SendError(req *Request, code ErrorCode, msg string)
+	SendResponse(req *Request, payload interface{}) error
+	SendError(req *Request, code ErrorCode, msg string) error
 }
 
 // Response represents a response to be sent back to the client
@@ -21,11 +21,11 @@ func NewResponse(req *Request, sender ResponseSender) *Response {
 }
 
 // SendSuccess sends a success response with the given payload
-func (r *Response) SendSuccess(payload interface{}) {
-	r.sender.SendResponse(r.request, payload)
+func (r *Response) SendSuccess(payload interface{}) error {
+	return r.sender.SendResponse(r.request, payload)
 }
 
 // SendError sends an error response with the given details
-func (r *Response) SendError(code ErrorCode, msg string) {
-	r.sender.SendError(r.request, code, msg)
+func (r *Response) SendError(code ErrorCode, msg string) error {
+	return r.sender.SendError(r.request, code, msg)
 }

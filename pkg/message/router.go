@@ -8,7 +8,7 @@ import (
 )
 
 // ActionHandler is a function that processes an action with the given context, request and response
-type ActionHandler func(ctx context.Context, req *Request, res *Response)
+type ActionHandler func(ctx context.Context, req *Request, res *Response) error
 
 // Middleware is a function that wraps an ActionHandler and can perform pre- / post-processing
 type Middleware func(ActionHandler) ActionHandler
@@ -81,6 +81,7 @@ func (r *Handler) GetHandler(action string) (ActionHandler, bool) {
 }
 
 // adaptHandler tries to convert different handler types to ActionHandler
+// adaptHandler tries to convert different handler types to ActionHandler
 func (r *Handler) adaptHandler(handler interface{}) ActionHandler {
 	// If it's already an ActionHandler, return it
 	if ah, ok := handler.(ActionHandler); ok {
@@ -89,64 +90,68 @@ func (r *Handler) adaptHandler(handler interface{}) ActionHandler {
 
 	// Use reflection to check if it's a method with the right signature
 	handlerType := reflect.TypeOf(handler)
-	if handlerType.Kind() == reflect.Func && handlerType.NumIn() == 3 {
-		// Check if the parameter types match what we expect
+	if handlerType.Kind() == reflect.Func && handlerType.NumIn() == 3 && handlerType.NumOut() == 1 {
+		// Check if the parameter types match what we expect and it returns an error
 		if handlerType.In(0).String() == "context.Context" &&
 			handlerType.In(1).AssignableTo(reflect.TypeOf(&Request{})) &&
-			handlerType.In(2).AssignableTo(reflect.TypeOf(&Response{})) {
+			handlerType.In(2).AssignableTo(reflect.TypeOf(&Response{})) &&
+			handlerType.Out(0).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
 
-			// Create a function that calls the method with the right signature
-			return func(ctx context.Context, req *Request, res *Response) {
-				reflect.ValueOf(handler).Call([]reflect.Value{
+			// Create a function that calls the method with the right signature and returns error
+			return func(ctx context.Context, req *Request, res *Response) error {
+				results := reflect.ValueOf(handler).Call([]reflect.Value{
 					reflect.ValueOf(ctx),
 					reflect.ValueOf(req),
 					reflect.ValueOf(res),
 				})
+
+				if results[0].IsNil() {
+					return nil
+				}
+				return results[0].Interface().(error)
 			}
 		}
 	}
 
+	// Handle other function signatures as before, but adapt them to return nil error
+
 	// Handle simple function with no parameters that returns an interface{}
 	if fn, ok := handler.(func() interface{}); ok {
-		return func(ctx context.Context, req *Request, res *Response) {
+		return func(ctx context.Context, req *Request, res *Response) error {
 			result := fn()
-			res.SendSuccess(result)
+			return res.SendSuccess(result)
 		}
 	}
 
 	// Handle function that returns (interface{}, error)
 	if fn, ok := handler.(func() (interface{}, error)); ok {
-		return func(ctx context.Context, req *Request, res *Response) {
+		return func(ctx context.Context, req *Request, res *Response) error {
 			result, err := fn()
 			if err != nil {
-				res.SendError(ErrServiceUnavailable, err.Error())
-				return
+				return res.SendError(ErrCodeServiceUnavailable, err.Error())
 			}
-			res.SendSuccess(result)
+			return res.SendSuccess(result)
 		}
 	}
 
 	// Handle function that takes a payload and returns an interface{}
 	if fn, ok := handler.(func(any) interface{}); ok {
-		return func(ctx context.Context, req *Request, res *Response) {
-			// Get payload from context, might be nil
+		return func(ctx context.Context, req *Request, res *Response) error {
 			payload := req.Payload
 			result := fn(payload)
-			res.SendSuccess(result)
+			return res.SendSuccess(result)
 		}
 	}
 
 	// Handle function that takes a payload and returns (interface{}, error)
 	if fn, ok := handler.(func(any) (interface{}, error)); ok {
-		return func(ctx context.Context, req *Request, res *Response) {
-			// Get payload from context, might be nil
+		return func(ctx context.Context, req *Request, res *Response) error {
 			payload := req.Payload
 			result, err := fn(payload)
 			if err != nil {
-				res.SendError(ErrServiceUnavailable, err.Error())
-				return
+				return res.SendError(ErrCodeServiceUnavailable, err.Error())
 			}
-			res.SendSuccess(result)
+			return res.SendSuccess(result)
 		}
 	}
 

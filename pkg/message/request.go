@@ -1,8 +1,6 @@
 package message
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type RequestPayload = map[string]any
 

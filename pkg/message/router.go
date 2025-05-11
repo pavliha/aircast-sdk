@@ -3,158 +3,153 @@ package message
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"reflect"
+
+	"github.com/sirupsen/logrus"
 )
 
-// ActionHandler is a function that processes an action with the given context, request and response
+// ActionHandler processes an action with the given context, request, and response.
 type ActionHandler func(ctx context.Context, req *Request, res *Response) error
 
-// Middleware is a function that wraps an ActionHandler and can perform pre- / post-processing
+// Middleware wraps an ActionHandler for pre- and post-processing.
 type Middleware func(ActionHandler) ActionHandler
 
-// Handler stores registered action handlers
+// Handler stores registered action handlers and global middleware.
 type Handler struct {
-	handlers map[string]ActionHandler
-	logger   *logrus.Entry
+	routes      map[string]ActionHandler // action name → handler
+	middlewares []Middleware             // global middleware stack
+	logger      *logrus.Entry
 }
 
-// NewHandler creates a new action registry
+// NewHandler creates a new Handler with the given logger.
 func NewHandler(logger *logrus.Entry) *Handler {
 	return &Handler{
-		handlers: make(map[string]ActionHandler),
-		logger:   logger,
+		routes:      make(map[string]ActionHandler),
+		middlewares: []Middleware{},
+		logger:      logger,
 	}
 }
 
-// Handle registers an action with handlers and optional middleware
-func (r *Handler) Handle(action string, handlers ...interface{}) {
-	// The last handler must be the actual ActionHandler
-	if len(handlers) == 0 {
-		panic(fmt.Sprintf("No handlers provided for action %s", action))
+// Use adds global middleware to the stack. Middlewares are executed in the order added.
+func (h *Handler) Use(mw Middleware) {
+	h.middlewares = append(h.middlewares, mw)
+}
+
+// Handle registers an action with optional inline middleware and a final ActionHandler.
+// The last argument must be an ActionHandler or a convertible function; any preceding
+// arguments must be Middleware.
+// Global middlewares wrap all registered handlers.
+func (h *Handler) Handle(action string, components ...interface{}) {
+	if len(components) == 0 {
+		panic(fmt.Sprintf("no handler provided for action %s", action))
 	}
 
-	// Handle the simple case: Handle(ActionNetworkStatusGet, handler)
-	if len(handlers) == 1 {
-		handler, ok := handlers[0].(ActionHandler)
-		if !ok {
-			// Try to adapt the function if it's not exactly an ActionHandler
-			if adaptedHandler := r.adaptHandler(handlers[0]); adaptedHandler != nil {
-				r.handlers[action] = adaptedHandler
-				return
-			}
-			panic(fmt.Sprintf("Handler for action %s is not an ActionHandler", action))
-		}
-		r.handlers[action] = handler
-		return
-	}
-
-	// Handle the middleware case
-	finalHandler, ok := handlers[len(handlers)-1].(ActionHandler)
-	if !ok {
-		// Try to adapt the handler
-		if adaptedHandler := r.adaptHandler(handlers[len(handlers)-1]); adaptedHandler != nil {
-			finalHandler = adaptedHandler
+	// Adapt the final component into an ActionHandler
+	var handler ActionHandler
+	last := components[len(components)-1]
+	switch fn := last.(type) {
+	case ActionHandler:
+		handler = fn
+	default:
+		if adapted := h.adaptHandler(fn); adapted != nil {
+			handler = adapted
 		} else {
-			panic(fmt.Sprintf("Last handler for action %s is not an ActionHandler", action))
+			panic(fmt.Sprintf("last component for action %s is not an ActionHandler", action))
 		}
 	}
 
-	// Apply middleware in reverse order (so the first middleware is the outermost)
-	// All items except the last one should be middleware
-	for i := len(handlers) - 2; i >= 0; i-- {
-		middleware, ok := handlers[i].(Middleware)
+	// Apply inline middleware (from left to right)
+	for _, comp := range components[:len(components)-1] {
+		mw, ok := comp.(Middleware)
 		if !ok {
-			panic(fmt.Sprintf("Handler at position %d for action %s is not a Middleware", i, action))
+			panic(fmt.Sprintf("component for action %s is not middleware", action))
 		}
-		finalHandler = middleware(finalHandler)
+		handler = mw(handler)
 	}
 
-	// Handle the handler with the action
-	r.handlers[action] = finalHandler
+	// Wrap with global middlewares in registration order
+	for _, mw := range h.middlewares {
+		handler = mw(handler)
+	}
+
+	h.routes[action] = handler
 }
 
-// GetHandler returns the handler for the given action
-func (r *Handler) GetHandler(action string) (ActionHandler, bool) {
-	handler, exists := r.handlers[action]
-	return handler, exists
+// GetHandler retrieves the ActionHandler for the given action.
+func (h *Handler) GetHandler(action string) (ActionHandler, bool) {
+	handler, found := h.routes[action]
+	return handler, found
 }
 
-// adaptHandler tries to convert different handler types to ActionHandler
-// adaptHandler tries to convert different handler types to ActionHandler
-func (r *Handler) adaptHandler(handler interface{}) ActionHandler {
-	// If it's already an ActionHandler, return it
-	if ah, ok := handler.(ActionHandler); ok {
+// adaptHandler attempts to convert various function signatures into an ActionHandler.
+func (h *Handler) adaptHandler(candidate interface{}) ActionHandler {
+	// Already the right type?
+	if ah, ok := candidate.(ActionHandler); ok {
 		return ah
 	}
 
-	// Use reflection to check if it's a method with the right signature
-	handlerType := reflect.TypeOf(handler)
-	if handlerType.Kind() == reflect.Func && handlerType.NumIn() == 3 && handlerType.NumOut() == 1 {
-		// Check if the parameter types match what we expect and it returns an error
-		if handlerType.In(0).String() == "context.Context" &&
-			handlerType.In(1).AssignableTo(reflect.TypeOf(&Request{})) &&
-			handlerType.In(2).AssignableTo(reflect.TypeOf(&Response{})) &&
-			handlerType.Out(0).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
+	// Reflection-based adapter for funcs of type func(context.Context, *Request, *Response) error
 
-			// Create a function that calls the method with the right signature and returns error
+	typ := reflect.TypeOf(candidate)
+	if typ.Kind() == reflect.Func && typ.NumIn() == 3 && typ.NumOut() == 1 {
+		if typ.In(0).String() == "context.Context" &&
+			typ.In(1).AssignableTo(reflect.TypeOf(&Request{})) &&
+			typ.In(2).AssignableTo(reflect.TypeOf(&Response{})) &&
+			typ.Out(0).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
 			return func(ctx context.Context, req *Request, res *Response) error {
-				results := reflect.ValueOf(handler).Call([]reflect.Value{
+				outs := reflect.ValueOf(candidate).Call([]reflect.Value{
 					reflect.ValueOf(ctx),
 					reflect.ValueOf(req),
 					reflect.ValueOf(res),
 				})
 
-				if results[0].IsNil() {
-					return nil
+				if errVal := outs[0]; !errVal.IsNil() {
+					return errVal.Interface().(error)
 				}
-				return results[0].Interface().(error)
+				return nil
 			}
 		}
-	}
 
-	// Handle other function signatures as before, but adapt them to return nil error
-
-	// Handle simple function with no parameters that returns an interface{}
-	if fn, ok := handler.(func() interface{}); ok {
-		return func(ctx context.Context, req *Request, res *Response) error {
-			result := fn()
-			return res.SendSuccess(result)
-		}
-	}
-
-	// Handle function that returns (interface{}, error)
-	if fn, ok := handler.(func() (interface{}, error)); ok {
-		return func(ctx context.Context, req *Request, res *Response) error {
-			result, err := fn()
-			if err != nil {
-				return res.SendError(ErrCodeServiceUnavailable, err.Error())
+		// Adapter for func() interface{}
+		if fn, ok := candidate.(func() interface{}); ok {
+			return func(ctx context.Context, req *Request, res *Response) error {
+				result := fn()
+				return res.SendSuccess(result)
 			}
-			return res.SendSuccess(result)
 		}
-	}
 
-	// Handle function that takes a payload and returns an interface{}
-	if fn, ok := handler.(func(any) interface{}); ok {
-		return func(ctx context.Context, req *Request, res *Response) error {
-			payload := req.Payload
-			result := fn(payload)
-			return res.SendSuccess(result)
-		}
-	}
-
-	// Handle function that takes a payload and returns (interface{}, error)
-	if fn, ok := handler.(func(any) (interface{}, error)); ok {
-		return func(ctx context.Context, req *Request, res *Response) error {
-			payload := req.Payload
-			result, err := fn(payload)
-			if err != nil {
-				return res.SendError(ErrCodeServiceUnavailable, err.Error())
+		// Adapter for func() (interface{}, error)
+		if fn, ok := candidate.(func() (interface{}, error)); ok {
+			return func(ctx context.Context, req *Request, res *Response) error {
+				result, err := fn()
+				if err != nil {
+					return res.SendError(ErrCodeServiceUnavailable, err.Error())
+				}
+				return res.SendSuccess(result)
 			}
-			return res.SendSuccess(result)
 		}
-	}
 
-	// Could not adapt the handler
+		// Adapter for func(any) interface{}
+		if fn, ok := candidate.(func(any) interface{}); ok {
+			return func(ctx context.Context, req *Request, res *Response) error {
+				result := fn(req.Payload)
+				return res.SendSuccess(result)
+			}
+		}
+
+		// Adapter for func(any) (interface{}, error)
+		if fn, ok := candidate.(func(any) (interface{}, error)); ok {
+			return func(ctx context.Context, req *Request, res *Response) error {
+				result, err := fn(req.Payload)
+				if err != nil {
+					return res.SendError(ErrCodeServiceUnavailable, err.Error())
+				}
+				return res.SendSuccess(result)
+			}
+		}
+
+		// Could not adapt
+		return nil
+	}
 	return nil
 }

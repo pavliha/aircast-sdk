@@ -54,7 +54,7 @@ func NewProcessor() *Processor {
 
 // Process unmarshals and validates a request payload into a struct
 func (p *Processor) Process(payload map[string]interface{}, target interface{}) error {
-	// Convert payload to JSON bytes for standard unmarshaling
+	// Convert payload to JSON bytes for standard unmarshalling
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)

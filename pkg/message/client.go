@@ -48,7 +48,7 @@ type Connection interface {
 
 type ClientConfig struct {
 	Source      MessageSource
-	PrintConfig PrintConfig
+	PrintConfig *PrintConfig
 }
 
 // client implements the Client interface
@@ -60,7 +60,7 @@ type client struct {
 	closeMutex  sync.Mutex
 	closeOnce   sync.Once
 	source      MessageSource
-	printConfig PrintConfig
+	printConfig *PrintConfig
 }
 
 // NewClient creates a new message client
@@ -121,7 +121,9 @@ func (c *client) Listen(ctx context.Context) error {
 				select {
 				case c.msgCh <- msg:
 					c.logger.Trace("Message received and forwarded")
-					Print(msg, c.printConfig)
+					if c.printConfig != nil {
+						Print(msg, c.printConfig)
+					}
 				default:
 					c.logger.Warn("GenericMessage channel full, dropping message")
 				}

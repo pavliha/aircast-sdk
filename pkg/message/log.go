@@ -25,10 +25,14 @@ const (
 )
 
 // Print prints a formatted colored message to stdout
-func Print(msg GenericMessage, config PrintConfig) {
+func Print(msg GenericMessage, config *PrintConfig) {
 	// Get message info
 	var msgType, action, source, sessionID string
-	var payload interface{}
+	var payload any
+
+	if config == nil {
+		return
+	}
 
 	switch m := msg.(type) {
 	case EventMessage:

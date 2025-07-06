@@ -31,9 +31,9 @@ type Client interface {
 	// ReadMessage returns a channel of incoming parsed messages
 	ReadMessage() <-chan any
 
-	SendResponse(req *Request, payload any) error
+	SendResponse(req *RequestMessage, payload any) error
 
-	SendError(req *Request, payload ErrorResponse) error
+	SendError(req *RequestMessage, payload ErrorResponse) error
 
 	SendEvent(action MessageAction, payload any, sessionID SessionID) error
 }
@@ -227,7 +227,7 @@ func (c *client) SendBroadcastMessage(msg any) error {
 	return c.Send(msg, nil)
 }
 
-func (c *client) SendResponse(req *Request, payload any) error {
+func (c *client) SendResponse(req *RequestMessage, payload any) error {
 	return c.Send(ResponseMessage{
 		Action:    req.Action,
 		Payload:   payload,
@@ -246,7 +246,7 @@ func (c *client) SendEvent(action MessageAction, payload any, sessionID SessionI
 	}, &sessionID)
 }
 
-func (c *client) SendError(req *Request, errResponse ErrorResponse) error {
+func (c *client) SendError(req *RequestMessage, errResponse ErrorResponse) error {
 	return c.Send(ErrorMessage{
 		Action:    req.Action,
 		Source:    c.source,

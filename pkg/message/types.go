@@ -12,7 +12,7 @@ type SessionID = string
 type GenericMessage = any
 
 // MessagePayload is the payload contained in a WebSocket message
-type MessagePayload interface{}
+type MessagePayload any
 
 // Protocol message types
 const (
@@ -26,30 +26,6 @@ const (
 const (
 	SystemDevice MessageSource = "device"
 	SystemAPI    MessageSource = "api"
-	SystemClient MessageSource = "client"
-)
-
-// ErrorCode Standard error codes
-type ErrorCode = string
-
-const (
-	ErrCodeInvalidRequest     ErrorCode = "INVALID_REQUEST"
-	ErrCodeInternalError      ErrorCode = "INTERNAL_ERROR"
-	ErrCodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
-	ErrCodeTimeout            ErrorCode = "TIMEOUT"
-	ErrCodeUnauthorized       ErrorCode = "UNAUTHORIZED"
-	ErrCodeInvalidParameters  ErrorCode = "INVALID_PARAMETERS"
-	ErrCodeNotFound           ErrorCode = "NOT_FOUND"
-)
-
-// ErrorLevel Error level indicators
-type ErrorLevel string
-
-const (
-	ErrorLevelInfo    ErrorLevel = "INFO"
-	ErrorLevelWarning ErrorLevel = "WARNING"
-	ErrorLevelError   ErrorLevel = "ERROR"
-	ErrorLevelFatal   ErrorLevel = "FATAL"
 )
 
 // Protocol validation errors
@@ -70,7 +46,7 @@ var (
 // RequestMessage represents a client request
 type RequestMessage struct {
 	Action    MessageAction `json:"action"`
-	Payload   interface{}   `json:"payload,omitempty"`
+	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
 	RequestID string        `json:"request_id"`
 	SessionID string        `json:"session_id,omitempty"`
@@ -79,7 +55,7 @@ type RequestMessage struct {
 // ResponseMessage represents a server response
 type ResponseMessage struct {
 	Action    MessageAction `json:"action"`
-	Payload   interface{}   `json:"payload,omitempty"`
+	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
 	SessionID SessionID     `json:"session_id,omitempty"`
 	ReplyTo   RequestID     `json:"reply_to"`
@@ -87,9 +63,9 @@ type ResponseMessage struct {
 
 // ErrorResponse represents the error details
 type ErrorResponse struct {
-	Code    ErrorCode   `json:"code"`
-	Message string      `json:"message"`
-	Details interface{} `json:"details,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Details any    `json:"details,omitempty"`
 }
 
 // ErrorMessage represents a server error response
@@ -104,7 +80,7 @@ type ErrorMessage struct {
 // EventMessage represents a server-initiated event
 type EventMessage struct {
 	Action    MessageAction `json:"action"`
-	Payload   interface{}   `json:"payload,omitempty"`
+	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
 	SessionID SessionID     `json:"session_id,omitempty"`
 }

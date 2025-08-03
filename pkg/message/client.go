@@ -67,7 +67,7 @@ type client struct {
 func NewClient(logger *log.Entry, conn Connection, config ClientConfig) Client {
 	return &client{
 		conn:        conn,
-		msgCh:       make(chan GenericMessage, 100),
+		msgCh:       make(chan GenericMessage, 500), // Increased buffer for ICE candidates
 		logger:      logger.WithField("component", "message_client"),
 		closed:      false,
 		closeMutex:  sync.Mutex{},

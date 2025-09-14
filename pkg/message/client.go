@@ -1,26 +1,35 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
+
+// Pool for reusing bytes.Buffer for JSON encoding
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 512)) // Pre-allocate 512 bytes
+	},
+}
 
 // Client represents a message client connected to a device or web client
 type Client interface {
 	// Listen starts listening for incoming messages
 	Listen(ctx context.Context) error
 
-	// SendSessionMessage sends direct message
-	SendSessionMessage(sessionId SessionID, msg any) error
+	// SendMessageToChannel sends direct message
+	SendMessageToChannel(id ChannelID, msg any) error
 
 	// SendBroadcastMessage sends a broadcast message
 	SendBroadcastMessage(msg any) error
 
 	// Send sends a message
-	Send(msg any, sessionId *SessionID) error
+	Send(msg any, sessionId *ChannelID) error
 
 	// Close closes the client connection
 	Close() error
@@ -33,14 +42,14 @@ type Client interface {
 
 	SendResponse(req *RequestMessage, payload any) error
 
-	SendError(req *RequestMessage, payload ErrorResponse) error
+	SendErrorToChannel(req *RequestMessage, payload ErrorResponse) error
 
-	SendEvent(action MessageAction, payload any, sessionID SessionID) error
+	SendEventToChannel(action MessageAction, payload any, sessionID ChannelID) error
 }
 
 // Connection represents a WebSocket connection
 type Connection interface {
-	SendTextMessage(message []byte) error
+	SendMessage(message []byte) error
 	ReadMessage() <-chan []byte
 	Close() error
 	IsClosed() bool
@@ -67,7 +76,7 @@ type client struct {
 func NewClient(logger *log.Entry, conn Connection, config ClientConfig) Client {
 	return &client{
 		conn:        conn,
-		msgCh:       make(chan GenericMessage, 500), // Increased buffer for ICE candidates
+		msgCh:       make(chan GenericMessage, 10000), // Much larger buffer for high throughput
 		logger:      logger.WithField("component", "message_client"),
 		closed:      false,
 		closeMutex:  sync.Mutex{},
@@ -103,7 +112,9 @@ func (c *client) Listen(ctx context.Context) error {
 
 		case msgBytes, ok := <-msgChan:
 			if !ok {
-				c.logger.Trace("WebSocket message channel closed")
+				if c.logger.Logger.IsLevelEnabled(log.TraceLevel) {
+					c.logger.Trace("WebSocket message channel closed")
+				}
 				_ = c.Close()
 				return nil
 			}
@@ -120,7 +131,10 @@ func (c *client) Listen(ctx context.Context) error {
 			if !c.IsClosed() {
 				select {
 				case c.msgCh <- msg:
-					c.logger.Trace("Message received and forwarded")
+					// Only log trace if enabled to reduce overhead
+					if c.logger.Logger.IsLevelEnabled(log.TraceLevel) {
+						c.logger.Trace("Message received and forwarded")
+					}
 					if c.printConfig != nil {
 						Print(msg, c.printConfig)
 					}
@@ -130,7 +144,9 @@ func (c *client) Listen(ctx context.Context) error {
 			}
 
 		case <-ctx.Done():
-			c.logger.Trace("Context canceled in message loop")
+			if c.logger.Logger.IsLevelEnabled(log.TraceLevel) {
+				c.logger.Trace("Context canceled in message loop")
+			}
 			_ = c.Close()
 			return nil
 		}
@@ -143,25 +159,25 @@ func (c *client) ReadMessage() <-chan GenericMessage {
 }
 
 // Send is a helper function that handles the common logic for sending messages
-func (c *client) Send(msg any, sessionId *SessionID) error {
+func (c *client) Send(msg any, channelId *ChannelID) error {
 	if c.IsClosed() {
 		return fmt.Errorf("client connection is closed")
 	}
 
-	// First add sessionId to the message if provided
-	if sessionId != nil {
+	// First add channelId to the message if provided
+	if channelId != nil {
 		switch m := msg.(type) {
 		case RequestMessage:
-			m.SessionID = string(*sessionId)
+			m.ChannelID = string(*channelId)
 			msg = m
 		case ResponseMessage:
-			m.SessionID = *sessionId
+			m.ChannelID = *channelId
 			msg = m
 		case ErrorMessage:
-			m.SessionID = *sessionId
+			m.ChannelID = *channelId
 			msg = m
 		case EventMessage:
-			m.SessionID = *sessionId
+			m.ChannelID = *channelId
 			msg = m
 		}
 	}
@@ -208,19 +224,31 @@ func (c *client) Send(msg any, sessionId *SessionID) error {
 		return fmt.Errorf("message type not supported: %T", msg)
 	}
 
-	// Marshal envelope to JSON
-	data, err := json.Marshal(envelope)
-	if err != nil {
+	// Use pooled buffer for better performance
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}()
+
+	encoder := json.NewEncoder(buf)
+	if err := encoder.Encode(envelope); err != nil {
 		c.logger.WithError(err).Error("Failed to marshal message")
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	return c.conn.SendTextMessage(data)
+	// Remove the trailing newline that Encoder adds
+	data := buf.Bytes()
+	if len(data) > 0 && data[len(data)-1] == '\n' {
+		data = data[:len(data)-1]
+	}
+
+	return c.conn.SendMessage(data)
 }
 
-// SendSessionMessage sends a message to a specific session
-func (c *client) SendSessionMessage(sessionId SessionID, msg any) error {
-	return c.Send(msg, &sessionId)
+// SendMessageToChannel sends a message to a specific session
+func (c *client) SendMessageToChannel(channelID ChannelID, msg any) error {
+	return c.Send(msg, &channelID)
 }
 
 func (c *client) SendBroadcastMessage(msg any) error {
@@ -232,28 +260,28 @@ func (c *client) SendResponse(req *RequestMessage, payload any) error {
 		Action:    req.Action,
 		Payload:   payload,
 		Source:    c.source,
-		SessionID: req.SessionID,
+		ChannelID: req.ChannelID,
 		ReplyTo:   req.RequestID,
-	}, &req.SessionID)
+	}, &req.ChannelID)
 }
 
-func (c *client) SendEvent(action MessageAction, payload any, sessionID SessionID) error {
+func (c *client) SendEventToChannel(action MessageAction, payload any, channelID ChannelID) error {
 	return c.Send(EventMessage{
 		Action:    action,
 		Payload:   payload,
 		Source:    c.source,
-		SessionID: sessionID,
-	}, &sessionID)
+		ChannelID: channelID,
+	}, &channelID)
 }
 
-func (c *client) SendError(req *RequestMessage, errResponse ErrorResponse) error {
+func (c *client) SendErrorToChannel(req *RequestMessage, errResponse ErrorResponse) error {
 	return c.Send(ErrorMessage{
 		Action:    req.Action,
 		Source:    c.source,
-		SessionID: req.SessionID,
+		ChannelID: req.ChannelID,
 		Error:     errResponse,
 		ReplyTo:   req.RequestID,
-	}, &req.SessionID)
+	}, &req.ChannelID)
 }
 
 // Close safely closes the client connection.

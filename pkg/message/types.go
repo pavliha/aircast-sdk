@@ -8,7 +8,7 @@ type MessageType = string
 type MessageAction = string
 type MessageSource = string
 type RequestID = string
-type SessionID = string
+type ChannelID = string
 type GenericMessage = any
 
 // MessagePayload is the payload contained in a WebSocket message
@@ -49,7 +49,7 @@ type RequestMessage struct {
 	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
 	RequestID string        `json:"request_id"`
-	SessionID string        `json:"session_id,omitempty"`
+	ChannelID string        `json:"channel_id,omitempty"`
 }
 
 // ResponseMessage represents a server response
@@ -57,7 +57,7 @@ type ResponseMessage struct {
 	Action    MessageAction `json:"action"`
 	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
-	SessionID SessionID     `json:"session_id,omitempty"`
+	ChannelID ChannelID     `json:"channel_id,omitempty"`
 	ReplyTo   RequestID     `json:"reply_to"`
 }
 
@@ -72,7 +72,7 @@ type ErrorResponse struct {
 type ErrorMessage struct {
 	Action    MessageAction `json:"action"`
 	Source    MessageSource `json:"source"`
-	SessionID SessionID     `json:"session_id,omitempty"`
+	ChannelID ChannelID     `json:"channel_id,omitempty"`
 	Error     ErrorResponse `json:"error"`
 	ReplyTo   RequestID     `json:"reply_to"`
 }
@@ -82,5 +82,10 @@ type EventMessage struct {
 	Action    MessageAction `json:"action"`
 	Payload   any           `json:"payload,omitempty"`
 	Source    MessageSource `json:"source"`
-	SessionID SessionID     `json:"session_id,omitempty"`
+	ChannelID ChannelID     `json:"channel_id,omitempty"`
+}
+
+// Channel represents a communication channel
+type Channel struct {
+	ID ChannelID `json:"id"`
 }

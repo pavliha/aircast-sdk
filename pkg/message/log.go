@@ -2,8 +2,9 @@ package message
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 type PrintConfig struct {
@@ -27,7 +28,7 @@ const (
 // Print prints a formatted colored message to stdout
 func Print(msg GenericMessage, config *PrintConfig) {
 	// Get message info
-	var msgType, action, source, sessionID string
+	var msgType, action, source, channelID string
 	var payload any
 
 	if config == nil {
@@ -39,25 +40,25 @@ func Print(msg GenericMessage, config *PrintConfig) {
 		msgType = "EVENT"
 		action = m.Action
 		source = m.Source
-		sessionID = m.SessionID
+		channelID = m.ChannelID
 		payload = m.Payload
 	case RequestMessage:
 		msgType = "REQUEST"
 		action = m.Action
 		source = m.Source
-		sessionID = m.SessionID
+		channelID = m.ChannelID
 		payload = m.Payload
 	case ResponseMessage:
 		msgType = "RESPONSE"
 		action = m.Action
 		source = m.Source
-		sessionID = m.SessionID
+		channelID = m.ChannelID
 		payload = m.Payload
 	case ErrorMessage:
 		msgType = "ERROR"
 		action = m.Action
 		source = m.Source
-		sessionID = m.SessionID
+		channelID = m.ChannelID
 		payload = m.Error
 	default:
 		msgType = "UNKNOWN"
@@ -78,10 +79,10 @@ func Print(msg GenericMessage, config *PrintConfig) {
 			Blue, source, Reset)
 	}
 
-	if sessionID != "" {
+	if channelID != "" {
 		fmt.Printf("  %sSessionID:%s %s%s%s\n",
 			Cyan, Reset,
-			Cyan, sessionID, Reset)
+			Cyan, channelID, Reset)
 	}
 
 	// Print payload only if it exists and is not empty
@@ -95,17 +96,17 @@ func Print(msg GenericMessage, config *PrintConfig) {
 }
 
 // hasContent checks if the payload has any content worth displaying
-func hasContent(payload interface{}) bool {
+func hasContent(payload any) bool {
 	if payload == nil {
 		return false
 	}
 
 	switch p := payload.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return len(p) > 0
 	case string:
 		return p != ""
-	case []interface{}:
+	case []any:
 		return len(p) > 0
 	default:
 		// For other types, assume they have content
@@ -114,13 +115,13 @@ func hasContent(payload interface{}) bool {
 }
 
 // printPayload pretty prints a payload
-func printPayload(payload interface{}) {
+func printPayload(payload any) {
 	if payload == nil {
 		return
 	}
 
 	switch p := payload.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for k, v := range p {
 			// Print key-value pairs
 			fmt.Printf("    %s%s:%s %v\n",

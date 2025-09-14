@@ -1,44 +1,78 @@
 package message
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 )
 
+// Pool for reusing generic message maps
+var messageMapPool = sync.Pool{
+	New: func() any {
+		return make(map[string]any, 8) // Pre-allocate for common message size
+	},
+}
+
 func UnmarshalMessage(data []byte) (any, error) {
-	// Unmarshal into a generic map to extract the "type" field.
-	var genericMsg map[string]any
-	if err := json.Unmarshal(data, &genericMsg); err != nil {
+	// Get generic message map from pool
+	genericMsg := messageMapPool.Get().(map[string]any)
+	defer func() {
+		// Clear map and return to pool
+		for k := range genericMsg {
+			delete(genericMsg, k)
+		}
+		messageMapPool.Put(genericMsg)
+	}()
+
+	// Use decoder with bytes reader for better performance
+	reader := bytes.NewReader(data)
+	decoder := json.NewDecoder(reader)
+
+	if err := decoder.Decode(&genericMsg); err != nil {
 		return nil, fmt.Errorf("failed to parse generic message: %w", err)
 	}
 
-	// Validate the message against protocol requirements.
-	if err := validateMessage(genericMsg); err != nil {
-		return nil, fmt.Errorf("message validation failed: %w", err)
-	}
-
-	// Retrieve the message type.
+	// Retrieve the message type quickly
 	messageType, ok := genericMsg["type"].(string)
 	if !ok {
 		return nil, errors.New("invalid message type field")
 	}
 
+	// Quick validation of required fields only
+	if genericMsg["action"] == nil {
+		return nil, ErrMissingAction
+	}
+
+	// Reset reader and use json.Unmarshal for final parsing (faster than second decoder)
 	// Based on the type field, unmarshal into the appropriate struct.
 	switch messageType {
 	case TypeRequest:
+		if genericMsg["request_id"] == nil {
+			return nil, ErrMissingRequestID
+		}
 		var req RequestMessage
 		if err := json.Unmarshal(data, &req); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal to RequestMessage: %w", err)
 		}
 		return req, nil
 	case TypeResponse:
+		if genericMsg["reply_to"] == nil {
+			return nil, errors.New("response must include 'reply_to' field")
+		}
 		var res ResponseMessage
 		if err := json.Unmarshal(data, &res); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal to ResponseMessage: %w", err)
 		}
 		return res, nil
 	case TypeError:
+		if genericMsg["reply_to"] == nil {
+			return nil, errors.New("error must include 'reply_to' field")
+		}
+		if genericMsg["error"] == nil {
+			return nil, errors.New("error must include 'error' field")
+		}
 		var errMsg ErrorMessage
 		if err := json.Unmarshal(data, &errMsg); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal to ErrorMessage: %w", err)

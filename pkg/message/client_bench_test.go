@@ -23,7 +23,7 @@ func NewBenchmarkConnection() *BenchmarkConnection {
 	}
 }
 
-func (c *BenchmarkConnection) SendMessage(message []byte) error {
+func (c *BenchmarkConnection) SendMessage([]byte) error {
 	// Simulate network latency
 	time.Sleep(time.Microsecond)
 	return nil

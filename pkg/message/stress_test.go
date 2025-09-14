@@ -32,7 +32,7 @@ func NewStressTestConnection(dropRate float32, latency time.Duration) *StressTes
 	}
 }
 
-func (c *StressTestConnection) SendMessage(message []byte) error {
+func (c *StressTestConnection) SendMessage([]byte) error {
 	// Simulate latency
 	if c.latency > 0 {
 		time.Sleep(c.latency)

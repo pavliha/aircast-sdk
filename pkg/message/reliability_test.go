@@ -54,7 +54,7 @@ func TestGoroutineLeaks(t *testing.T) {
 				t.Fatal("Listen did not return after context cancellation")
 			}
 
-			client.Close()
+			_ = client.Close()
 		}
 
 		// Allow goroutines to fully terminate
@@ -85,7 +85,7 @@ func TestGoroutineLeaks(t *testing.T) {
 
 		// Close all clients
 		for _, client := range clients {
-			client.Close()
+			_ = client.Close()
 		}
 
 		// Allow cleanup
@@ -118,7 +118,9 @@ func TestMessageReliability(t *testing.T) {
 		defer cancel()
 
 		// Start listening
-		go client.Listen(ctx)
+		go func() {
+			_ = client.Listen(ctx)
+		}()
 
 		// Track messages
 		const numMessages = 1000
@@ -173,7 +175,9 @@ func TestMessageReliability(t *testing.T) {
 		defer cancel()
 
 		// Start listening
-		go client.Listen(ctx)
+		go func() {
+			_ = client.Listen(ctx)
+		}()
 
 		// Send more messages than buffer size (10,000)
 		const numMessages = 12000
@@ -225,7 +229,9 @@ func TestMessageReliability(t *testing.T) {
 		defer cancel()
 
 		// Start listening
-		go client.Listen(ctx)
+		go func() {
+			_ = client.Listen(ctx)
+		}()
 
 		// Send a message
 		msg := map[string]interface{}{
@@ -322,7 +328,9 @@ func TestClientCloseRaceCondition(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		// Start listening
-		go client.Listen(ctx)
+		go func() {
+			_ = client.Listen(ctx)
+		}()
 
 		// Concurrent operations
 		var wg sync.WaitGroup
@@ -347,7 +355,7 @@ func TestClientCloseRaceCondition(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			time.Sleep(5 * time.Microsecond)
-			client.Close()
+			_ = client.Close()
 		}()
 
 		// Context canceller
@@ -382,7 +390,9 @@ func TestMessageChannelDeadlock(t *testing.T) {
 	defer cancel()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Fill the message channel
 	for i := 0; i < 600; i++ { // More than buffer size
@@ -399,14 +409,15 @@ func TestMessageChannelDeadlock(t *testing.T) {
 			// Sent
 		case <-time.After(10 * time.Millisecond):
 			// Timeout is OK, we're testing deadlock prevention
-			break
+			// Use labeled continue to exit select, not break
+			continue
 		}
 	}
 
 	// Try to close - should not deadlock
 	done := make(chan bool)
 	go func() {
-		client.Close()
+		_ = client.Close()
 		done <- true
 	}()
 
@@ -441,7 +452,9 @@ func TestMemoryLeaks(t *testing.T) {
 	defer cancel()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Get initial memory stats
 	var initialMem runtime.MemStats
@@ -500,7 +513,7 @@ func TestMemoryLeaks(t *testing.T) {
 		t.Errorf("Excessive memory growth detected: %.2f MB", memGrowthMB)
 	}
 
-	client.Close()
+	_ = client.Close()
 }
 
 // BenchmarkMessageReliability benchmarks message processing reliability
@@ -520,7 +533,9 @@ func BenchmarkMessageReliability(b *testing.B) {
 	defer cancel()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Prepare message
 	msg := map[string]interface{}{

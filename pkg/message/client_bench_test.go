@@ -183,7 +183,9 @@ func BenchmarkClientListen(b *testing.B) {
 	defer cancel()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Prepare test message
 	msg := map[string]interface{}{

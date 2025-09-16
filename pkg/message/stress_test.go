@@ -89,7 +89,9 @@ func TestHighVolumeMessageProcessing(t *testing.T) {
 	ctx := t.Context()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	const numMessages = 100000
 	received := int64(0)
@@ -196,7 +198,9 @@ func TestConcurrentClientsStress(t *testing.T) {
 			defer wg.Done()
 
 			// Listen
-			go c.Listen(ctx)
+			go func() {
+				_ = c.Listen(ctx)
+			}()
 
 			// Receive messages
 			received := 0
@@ -262,7 +266,7 @@ func TestConcurrentClientsStress(t *testing.T) {
 
 	// Cleanup
 	for _, client := range clients {
-		client.Close()
+		_ = client.Close()
 	}
 }
 
@@ -284,7 +288,9 @@ func TestMemoryPressure(t *testing.T) {
 	ctx := t.Context()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Create large payloads to pressure memory (reduced size for better throughput)
 	largePayload := make(map[string]string)
@@ -332,7 +338,7 @@ func TestMemoryPressure(t *testing.T) {
 	assert.GreaterOrEqual(t, processedCount, int64(numLargeMessages*0.9),
 		"Too many large messages lost")
 
-	client.Close()
+	_ = client.Close()
 }
 
 // TestNetworkSimulation tests with simulated network conditions
@@ -364,7 +370,9 @@ func TestNetworkSimulation(t *testing.T) {
 			ctx := t.Context()
 
 			// Start listening
-			go client.Listen(ctx)
+			go func() {
+				_ = client.Listen(ctx)
+			}()
 
 			const numMessages = 1000
 			var sent, received int64
@@ -412,7 +420,7 @@ func TestNetworkSimulation(t *testing.T) {
 			assert.GreaterOrEqual(t, successRate, tt.minSuccessRate,
 				"Success rate too low for network conditions")
 
-			client.Close()
+			_ = client.Close()
 		})
 	}
 }
@@ -439,7 +447,9 @@ func TestGoroutineStorm(t *testing.T) {
 	defer cancel()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Track operations
 	var operations int64
@@ -475,7 +485,7 @@ func TestGoroutineStorm(t *testing.T) {
 	t.Logf("Completed %d/%d operations", totalOps, expectedOps)
 	assert.GreaterOrEqual(t, totalOps, expectedOps*9/10, "Too many operations failed")
 
-	client.Close()
+	_ = client.Close()
 }
 
 // TestResourceExhaustion tests behavior when resources are nearly exhausted
@@ -497,7 +507,9 @@ func TestResourceExhaustion(t *testing.T) {
 	ctx := t.Context()
 
 	// Start listening
-	go client.Listen(ctx)
+	go func() {
+		_ = client.Listen(ctx)
+	}()
 
 	// Overwhelm the system
 	const numMessages = 10000
@@ -537,5 +549,5 @@ func TestResourceExhaustion(t *testing.T) {
 	// Should handle backpressure gracefully
 	assert.Greater(t, processedCount, int64(100), "System should handle some messages even under pressure")
 
-	client.Close()
+	_ = client.Close()
 }
